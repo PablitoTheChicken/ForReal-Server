@@ -33,48 +33,10 @@ app.get('/game/:universeId', async (req, res) => {
   const totalVotes = upVotes + downVotes;
   const likeRatio = totalVotes === 0 ? null : upVotes / totalVotes;
 
-  const thumbnailURL = 'https://thumbnails.roblox.com/v1/games/icons';
-  const imageURL = 'https://thumbnails.roblox.com/v1/games/thumbnails';
-
-  const [thumbnailResponse, imageResponse] = await Promise.all([
-    axios.get(thumbnailURL, {
-      params: {
-        universeIds: universeId,
-        size: '150x150',
-        format: 'Png',
-        isCircular: false
-      }
-    }),
-    axios.get(imageURL, {
-      params: {
-        universeIds: universeId,
-        size: '768x432',
-        format: 'Png',
-        isCircular: false
-      }
-    })
-  ]);
-
-  const iconData = thumbnailResponse.data?.data?.[0];
-  const thumbData = imageResponse.data?.data?.[0];
-
-  if (!iconData || iconData.state !== "Completed") {
-    console.warn(`Icon not found for universeId ${universeId}:`, iconData?.state);
-  }
-
-  if (!thumbData || thumbData.state !== "Completed") {
-    console.warn(`Thumbnail not found for universeId ${universeId}:`, thumbData?.state);
-  }
-
-  const iconUrl = iconData?.imageUrl || null;
-  const thumbnailUrl = thumbData?.imageUrl || null;
-
   res.json({
     visits,
     playing,
-    likeRatio,
-    iconUrl,
-    thumbnailUrl
+    likeRatio
   });
 
 } catch (error) {
