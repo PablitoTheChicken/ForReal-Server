@@ -66,7 +66,7 @@ app.get('/game/:universeId', async (req, res) => {
   }
 });
 
-const PORT = 3000;
+const PORT = 443;
 https.createServer(credentials, app).listen(PORT, () => {
   console.log(`✅ HTTPS server running at https://cahoots.gg`);
 });
