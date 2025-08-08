@@ -13,6 +13,10 @@ const privateKey  = fs.readFileSync('/etc/letsencrypt/live/cahoots.gg/privkey.pe
 const certificate = fs.readFileSync('/etc/letsencrypt/live/cahoots.gg/fullchain.pem', 'utf8');
 const credentials = { key: privateKey, cert: certificate };
 
+app.get('/', (req, res) => {
+  res.send('Welcome to the Roblox Game API');
+});
+
 app.get('/game/:universeId', async (req, res) => {
   const { universeId } = req.params;
 
