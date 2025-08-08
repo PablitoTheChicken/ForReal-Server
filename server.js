@@ -31,18 +31,30 @@ app.get('/game/:universeId', async (req, res) => {
       return res.status(404).json({ error: 'Game not found or invalid Universe ID' });
     }
 
-    const { visits, playing, upVotes, downVotes } = data;
-    const totalVotes = upVotes + downVotes;
-    const likeRatio = totalVotes === 0 ? null : upVotes / totalVotes;
+    const { visits, playing } = data;
 
-    // Fetch the game’s icon
+    // Fetch vote counts for like ratio:contentReference[oaicite:1]{index=1}
+    let upVotes = 0;
+    let downVotes = 0;
+    try {
+      const votesResp = await axios.get(`https://games.roblox.com/v1/games/${universeId}/votes`);
+      const votesData = votesResp.data;
+      upVotes = votesData?.upVotes ?? 0;
+      downVotes = votesData?.downVotes ?? 0;
+    } catch (voteErr) {
+      console.warn(`Votes request failed for universeId ${universeId}:`, voteErr.message);
+    }
+    const totalVotes = upVotes + downVotes;
+    const likeRatio = totalVotes > 0 ? upVotes / totalVotes : 0;
+
+    // Fetch the game’s icon (unchanged)
     let iconUrl = null;
     try {
       const iconResp = await axios.get('https://thumbnails.roblox.com/v1/games/icons', {
         params: {
           universeIds: universeId,
           size: '150x150',
-          format: 'Png',            // must be case‑sensitive:contentReference[oaicite:2]{index=2}
+          format: 'Png',
           returnPolicy: 'PlaceHolder',
           isCircular: false
         }
@@ -55,10 +67,9 @@ app.get('/game/:universeId', async (req, res) => {
       console.warn(`Icon request failed for universeId ${universeId}:`, err.message);
     }
 
-    // Fetch the game’s thumbnail
+    // Fetch the game’s thumbnail (unchanged)
     let thumbnailUrl = null;
     try {
-      // use multiget endpoint for rectangular thumbnails:contentReference[oaicite:3]{index=3}
       const thumbResp = await axios.get('https://thumbnails.roblox.com/v1/games/multiget/thumbnails', {
         params: {
           universeIds: universeId,
@@ -77,7 +88,6 @@ app.get('/game/:universeId', async (req, res) => {
       console.warn(`Thumbnail request failed for universeId ${universeId}:`, err.message);
     }
 
-    // Respond with game data
     res.json({
       visits,
       playing,
@@ -85,7 +95,6 @@ app.get('/game/:universeId', async (req, res) => {
       iconUrl,
       thumbnailUrl
     });
-
   } catch (error) {
     if (error.response) {
       console.error('Error fetching Roblox game data:', error.response.status, error.response.data);
