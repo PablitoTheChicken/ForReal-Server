@@ -28,7 +28,6 @@ app.get('/game/:universeId', async (req, res) => {
     const data = response.data.data?.[0];
 
     if (!data) {
-      console.error(`Game not found for universeId ${universeId}`);
       return res.status(404).json({ error: 'Game not found or invalid Universe ID' });
     }
 
@@ -36,47 +35,46 @@ app.get('/game/:universeId', async (req, res) => {
     const totalVotes = upVotes + downVotes;
     const likeRatio = totalVotes === 0 ? null : upVotes / totalVotes;
 
-    // Try to fetch thumbnails
+    // Fetch the game’s icon
     let iconUrl = null;
-    let thumbnailUrl = null;
-
     try {
-      const [thumbnailResponse, imageResponse] = await Promise.all([
-        axios.get('https://thumbnails.roblox.com/v1/games/icons', {
-          params: {
-            universeIds: universeId,
-            size: '150x150',
-            format: 'Png',
-            isCircular: false
-          }
-        }),
-        axios.get('https://thumbnails.roblox.com/v1/games/thumbnails', {
-          params: {
-            universeIds: universeId,
-            size: '768x432',
-            format: 'Png',
-            isCircular: false
-          }
-        })
-      ]);
-
-      const iconData = thumbnailResponse.data?.data?.[0];
-      const thumbData = imageResponse.data?.data?.[0];
-
+      const iconResp = await axios.get('https://thumbnails.roblox.com/v1/games/icons', {
+        params: {
+          universeIds: universeId,
+          size: '150x150',
+          format: 'Png',            // must be case‑sensitive:contentReference[oaicite:2]{index=2}
+          returnPolicy: 'PlaceHolder',
+          isCircular: false
+        }
+      });
+      const iconData = iconResp.data.data?.[0];
       if (iconData?.state === 'Completed') {
         iconUrl = iconData.imageUrl;
-      } else {
-        console.warn(`Icon not available for universeId ${universeId}:`, iconData?.state);
       }
+    } catch (err) {
+      console.warn(`Icon request failed for universeId ${universeId}:`, err.message);
+    }
 
-      if (thumbData?.state === 'Completed') {
-        thumbnailUrl = thumbData.imageUrl;
-      } else {
-        console.warn(`Thumbnail not available for universeId ${universeId}:`, thumbData?.state);
+    // Fetch the game’s thumbnail
+    let thumbnailUrl = null;
+    try {
+      // use multiget endpoint for rectangular thumbnails:contentReference[oaicite:3]{index=3}
+      const thumbResp = await axios.get('https://thumbnails.roblox.com/v1/games/multiget/thumbnails', {
+        params: {
+          universeIds: universeId,
+          size: '768x432',
+          format: 'Png',
+          returnPolicy: 'PlaceHolder',
+          isCircular: false
+        }
+      });
+      const thumbEntry = thumbResp.data.data?.[0];
+      const firstThumb = thumbEntry?.thumbnails?.[0];
+      if (firstThumb?.state === 'Completed') {
+        thumbnailUrl = firstThumb.imageUrl;
       }
-
-    } catch (thumbError) {
-      console.warn(`Thumbnail request failed for universeId ${universeId}:`, thumbError?.response?.status || thumbError.message);
+    } catch (err) {
+      console.warn(`Thumbnail request failed for universeId ${universeId}:`, err.message);
     }
 
     // Respond with game data
@@ -94,7 +92,6 @@ app.get('/game/:universeId', async (req, res) => {
     } else {
       console.error('Error fetching Roblox game data:', error.message);
     }
-
     res.status(500).json({ error: 'Failed to fetch game details from Roblox API' });
   }
 });
