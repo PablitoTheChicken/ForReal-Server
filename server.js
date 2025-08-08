@@ -105,6 +105,49 @@ app.get('/game/:universeId', async (req, res) => {
   }
 });
 
+app.get('/user/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // 1. Fetch user details (username, displayName):contentReference[oaicite:2]{index=2}.
+    const userResp = await axios.get(`https://users.roblox.com/v1/users/${userId}`);
+    const { name, displayName, id } = userResp.data;
+
+    // 2. Fetch avatar headshot image:contentReference[oaicite:3]{index=3}.
+    let avatarUrl = null;
+    try {
+      const headshotResp = await axios.get('https://thumbnails.roblox.com/v1/users/avatar-headshot', {
+        params: {
+          userIds: userId,
+          size: '150x150',
+          format: 'Png',
+          isCircular: false
+        }
+      });
+      const thumbData = headshotResp.data.data?.[0];
+      if (thumbData?.state === 'Completed') {
+        avatarUrl = thumbData.imageUrl;
+      }
+    } catch (thumbErr) {
+      console.warn(`Avatar request failed for userId ${userId}:`, thumbErr.message);
+    }
+
+    // Return user profile information
+    res.json({
+      userId: id,
+      username: name,
+      displayName,
+      avatarUrl
+    });
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      return res.status(404).json({ error: 'User not found or invalid user ID' });
+    }
+    console.error('Error fetching Roblox user data:', error.message);
+    res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+});
+
 // Start HTTPS server
 const PORT = 443;
 https.createServer(credentials, app).listen(PORT, () => {
