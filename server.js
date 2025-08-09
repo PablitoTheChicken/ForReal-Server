@@ -34,33 +34,37 @@ async function predictScore({ home, away, season, league, date }) {
     date && `Date: ${date}`
   ].filter(Boolean).join(' | ');
 
-  const resp = await openai.responses.create({
-    model: 'gpt-4o-mini-2024-07-18',
-    instructions: [
-      'Predict a football (soccer) full-time score.',
-      'Use the tool to return ONLY the score; no words.'
-    ].join(' '),
-    input: `Context: ${info}`,
-    tools: [{
-      type: 'function',
-      function: {
-        name: 'return_score',
-        description: 'Return only the predicted full-time score.',
-        strict: true, // enforce schema
-        parameters: {
-          type: 'object',
-          properties: {
-            score: { type: 'string', pattern: '^[0-9]{1,2}-[0-9]{1,2}$' }
-          },
-          required: ['score'],
-          additionalProperties: false
-        }
+  const resp = await openai.chat.completions.create({
+  model: 'gpt-4o-mini-2024-07-18',
+  messages: [
+    {
+      role: 'system',
+      content: 'Predict a football (soccer) full-time score. Use the tool to return ONLY the score; no words.'
+    },
+    {
+      role: 'user', 
+      content: `Context: ${info}`
+    }
+  ],
+  tools: [{
+    type: 'function',
+    function: {
+      name: 'return_score',
+      description: 'Return only the predicted full-time score.',
+      strict: true, // enforce schema
+      parameters: {
+        type: 'object',
+        properties: {
+          score: { type: 'string', pattern: '^[0-9]{1,2}-[0-9]{1,2}$' }
+        },
+        required: ['score'],
+        additionalProperties: false
       }
-    }],
-    // Force using our tool (single tool, so "required" is enough; you can also name it explicitly)
-    tool_choice: 'required',
-    max_output_tokens: 10
-  });
+    }
+  }],
+  tool_choice: 'required',
+  max_tokens: 10
+});
 
   // Find the tool call and extract validated args
   const toolCalls = (resp.output?.[0]?.content || []).filter(p => p.type === 'tool_call');
