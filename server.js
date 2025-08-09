@@ -62,17 +62,33 @@ async function predictScore({ home, away, season, league, date }) {
         }
       }
     }],
-    tool_choice: 'required',
+    tool_choice: { type: 'function', function: { name: 'return_score' } },
     max_tokens: 10
   });
 
   // Fix: Access the tool calls from the correct response structure
   const toolCalls = resp.choices?.[0]?.message?.tool_calls;
   if (!toolCalls || toolCalls.length === 0) {
+    console.error('Full response:', JSON.stringify(resp, null, 2));
     throw new Error('No tool calls found in response');
   }
   
-  const args = JSON.parse(toolCalls[0].function.arguments);
+  const argumentsString = toolCalls[0].function.arguments;
+  console.log('Raw arguments string:', argumentsString);
+  
+  if (!argumentsString || argumentsString.trim() === '') {
+    throw new Error('Empty arguments string from tool call');
+  }
+  
+  let args;
+  try {
+    args = JSON.parse(argumentsString);
+  } catch (parseError) {
+    console.error('JSON parse error:', parseError.message);
+    console.error('Raw arguments:', argumentsString);
+    throw new Error(`Failed to parse tool arguments: ${parseError.message}`);
+  }
+  
   const score = args?.score || '';
   
   if (!/^[0-9]{1,2}-[0-9]{1,2}$/.test(score)) {
@@ -81,7 +97,6 @@ async function predictScore({ home, away, season, league, date }) {
   
   return score;
 }
-
 
 app.get('/football/fixtures', async (req, res) => {
   try {
