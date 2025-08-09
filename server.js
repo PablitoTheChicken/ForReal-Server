@@ -35,44 +35,50 @@ async function predictScore({ home, away, season, league, date }) {
   ].filter(Boolean).join(' | ');
 
   const resp = await openai.chat.completions.create({
-  model: 'gpt-4o-mini-2024-07-18',
-  messages: [
-    {
-      role: 'system',
-      content: 'Predict a football (soccer) full-time score. Use the tool to return ONLY the score; no words.'
-    },
-    {
-      role: 'user', 
-      content: `Context: ${info}`
-    }
-  ],
-  tools: [{
-    type: 'function',
-    function: {
-      name: 'return_score',
-      description: 'Return only the predicted full-time score.',
-      strict: true, // enforce schema
-      parameters: {
-        type: 'object',
-        properties: {
-          score: { type: 'string', pattern: '^[0-9]{1,2}-[0-9]{1,2}$' }
-        },
-        required: ['score'],
-        additionalProperties: false
+    model: 'gpt-4o-mini-2024-07-18',
+    messages: [
+      {
+        role: 'system',
+        content: 'Predict a football (soccer) full-time score. Use the tool to return ONLY the score; no words.'
+      },
+      {
+        role: 'user', 
+        content: `Context: ${info}`
       }
-    }
-  }],
-  tool_choice: 'required',
-  max_tokens: 10
-});
+    ],
+    tools: [{
+      type: 'function',
+      function: {
+        name: 'return_score',
+        description: 'Return only the predicted full-time score.',
+        strict: true, // enforce schema
+        parameters: {
+          type: 'object',
+          properties: {
+            score: { type: 'string', pattern: '^[0-9]{1,2}-[0-9]{1,2}$' }
+          },
+          required: ['score'],
+          additionalProperties: false
+        }
+      }
+    }],
+    tool_choice: 'required',
+    max_tokens: 10
+  });
 
-  // Find the tool call and extract validated args
-  const toolCalls = (resp.output?.[0]?.content || []).filter(p => p.type === 'tool_call');
-  const args = toolCalls?.[0]?.function?.arguments;
+  // Fix: Access the tool calls from the correct response structure
+  const toolCalls = resp.choices?.[0]?.message?.tool_calls;
+  if (!toolCalls || toolCalls.length === 0) {
+    throw new Error('No tool calls found in response');
+  }
+  
+  const args = JSON.parse(toolCalls[0].function.arguments);
   const score = args?.score || '';
+  
   if (!/^[0-9]{1,2}-[0-9]{1,2}$/.test(score)) {
     throw new Error(`Invalid score: ${score}`);
   }
+  
   return score;
 }
 
