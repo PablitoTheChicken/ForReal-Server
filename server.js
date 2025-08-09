@@ -21,9 +21,17 @@ app.get('/', (req, res) => {
   res.send('Welcome to the Roblox Game API');
 });
 
-// Main game info endpoint
+const gameCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in ms
+
 app.get('/game/:universeId', async (req, res) => {
   const { universeId } = req.params;
+
+  // Check cache first
+  const cached = gameCache.get(universeId);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return res.json(cached.data);
+  }
 
   try {
     // Fetch core game data
@@ -36,7 +44,7 @@ app.get('/game/:universeId', async (req, res) => {
 
     const { visits, playing, name } = data;
 
-    // Fetch vote counts for like ratio:contentReference[oaicite:1]{index=1}
+    // Fetch vote counts
     let upVotes = 0;
     let downVotes = 0;
     try {
@@ -50,7 +58,7 @@ app.get('/game/:universeId', async (req, res) => {
     const totalVotes = upVotes + downVotes;
     const likeRatio = totalVotes > 0 ? upVotes / totalVotes : 0;
 
-    // Fetch the game’s icon (unchanged)
+    // Fetch the game’s icon
     let iconUrl = null;
     try {
       const iconResp = await axios.get('https://thumbnails.roblox.com/v1/games/icons', {
@@ -70,7 +78,7 @@ app.get('/game/:universeId', async (req, res) => {
       console.warn(`Icon request failed for universeId ${universeId}:`, err.message);
     }
 
-    // Fetch the game’s thumbnail (unchanged)
+    // Fetch the game’s thumbnail
     let thumbnailUrl = null;
     try {
       const thumbResp = await axios.get('https://thumbnails.roblox.com/v1/games/multiget/thumbnails', {
@@ -91,14 +99,19 @@ app.get('/game/:universeId', async (req, res) => {
       console.warn(`Thumbnail request failed for universeId ${universeId}:`, err.message);
     }
 
-    res.json({
+    const result = {
       name,
       visits,
       playing,
       likeRatio,
       iconUrl,
       thumbnailUrl
-    });
+    };
+
+    // Save to cache
+    gameCache.set(universeId, { data: result, timestamp: Date.now() });
+
+    res.json(result);
   } catch (error) {
     if (error.response) {
       console.error('Error fetching Roblox game data:', error.response.status, error.response.data);
