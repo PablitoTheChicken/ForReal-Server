@@ -13,8 +13,71 @@ const privateKey  = fs.readFileSync('/etc/letsencrypt/live/cahoots.gg/privkey.pe
 const certificate = fs.readFileSync('/etc/letsencrypt/live/cahoots.gg/fullchain.pem', 'utf8');
 const credentials = { key: privateKey, cert: certificate };
 
+const API_FOOTBALL_KEY=your_api_football_key_here
 const CONTACT_FROM="Cahoots.gg <no-reply@forreal.com>"
 const CONTACT_TO="joram@kleiberg.net"
+
+const footballCache = new Map();
+const FOOTBALL_CACHE_MS = 5 * 60 * 1000;
+
+app.get('/football/fixtures', async (req, res) => {
+  try {
+    const { date, leagues, timezone = 'UTC' } = req.query;
+    if (!date) {
+      return res.status(400).json({ error: "Missing required 'date' (YYYY-MM-DD)" });
+    }
+    if (!API_FOOTBALL_KEY) {
+      return res.status(500).json({ error: 'API_FOOTBALL_KEY not set on server' });
+    }
+
+    const leagueIds = (leagues ? String(leagues) : '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const cacheKey = JSON.stringify({ date, leagueIds, timezone });
+    const cached = footballCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < FOOTBALL_CACHE_MS) {
+      return res.json(cached.payload);
+    }
+
+    const url = 'https://v3.football.api-sports.io/fixtures';
+    const headers = { 'x-apisports-key': API_FOOTBALL_KEY };
+
+    let responses = [];
+    if (leagueIds.length === 0) {
+      // All fixtures for the date
+      const r = await axios.get(url, { headers, params: { date, timezone } });
+      responses = [r.data];
+    } else {
+      // Fetch per-league and merge
+      const requests = leagueIds.map(league =>
+        axios.get(url, { headers, params: { date, league, timezone } })
+      );
+      responses = (await Promise.all(requests)).map(r => r.data);
+    }
+
+    // Merge API-Football payloads
+    const merged = {
+      get: 'fixtures',
+      parameters: { date, leagues: leagueIds, timezone },
+      errors: [],
+      results: responses.reduce((sum, r) => sum + (r.results || 0), 0),
+      paging: { current: 1, total: 1 },
+      response: responses.flatMap(r => r.response || []),
+    };
+
+    footballCache.set(cacheKey, { ts: Date.now(), payload: merged });
+    res.json(merged);
+  } catch (err) {
+    console.error('API-Football error:', err.response?.status, err.response?.data || err.message);
+    const status = err.response?.status || 500;
+    res.status(status).json({
+      error: 'Failed to fetch fixtures',
+      details: err.response?.data ?? err.message,
+    });
+  }
+});
 
 // Root route
 app.get('/', (req, res) => {
