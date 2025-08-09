@@ -4,7 +4,7 @@ const cors = require('cors');
 const axios = require('axios');
 const fs = require('fs');
 
-const OPENAPI_KEY = "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"
+const OPENAPI_KEY = "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"
 const OpenAI = require('openai');
 const openai = new OpenAI({ apiKey: OPENAPI_KEY });
 
