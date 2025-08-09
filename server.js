@@ -98,6 +98,92 @@ async function predictScore({ home, away, season, league, date }) {
   return score;
 }
 
+// --- Scores by fixture IDs ---
+const scoreCache = new Map();
+const SCORE_CACHE_MS = 60 * 1000; // 1 min cache per id
+
+function extractFinalScore(fx) {
+  const st = fx?.fixture?.status?.short; // NS, 1H, HT, 2H, ET, FT, AET, PEN...
+  const s = fx?.score || {};
+  // prefer the "deciding" score first
+  if (st === 'PEN' && s.penalty?.home != null) return { ...s.penalty, type: 'PEN' };
+  if (st === 'AET' && s.extratime?.home != null) return { ...s.extratime, type: 'AET' };
+  if (['FT','AET','PEN'].includes(st) && s.fulltime?.home != null) return { ...s.fulltime, type: 'FT' };
+  // fallback to live goals if match not finished
+  if (fx?.goals) return { home: fx.goals.home, away: fx.goals.away, type: 'LIVE' };
+  return null;
+}
+
+async function fetchFixtureById(id) {
+  const cached = scoreCache.get(id);
+  if (cached && Date.now() - cached.ts < SCORE_CACHE_MS) return cached.fx;
+
+  const url = 'https://v3.football.api-sports.io/fixtures';
+  const headers = { 'x-apisports-key': API_FOOTBALL_KEY };
+  const { data } = await axios.get(url, { headers, params: { id } });
+  const fx = data?.response?.[0];
+  if (!fx) throw new Error('Fixture not found');
+  scoreCache.set(id, { ts: Date.now(), fx });
+  return fx;
+}
+
+async function resolveScores(ids) {
+  const tasks = ids.map(async (id) => {
+    try {
+      const fx = await fetchFixtureById(id);
+      const finalScore = extractFinalScore(fx);
+      return [String(id), {
+        id: fx?.fixture?.id,
+        date: fx?.fixture?.date,
+        timezone: fx?.fixture?.timezone,
+        status: fx?.fixture?.status,                  // { long, short, elapsed }
+        league: fx?.league,                           // { id, name, country, season, round }
+        teams: fx?.teams,                             // { home:{name,winner}, away:{...} }
+        goals: fx?.goals,                             // { home, away } (running total)
+        score: fx?.score,                             // { halftime, fulltime, extratime, penalty }
+        finalScore,                                   // normalized: {home, away, type}
+        isFinished: ['FT','AET','PEN'].includes(fx?.fixture?.status?.short)
+      }];
+    } catch (e) {
+      return [String(id), { error: e.message }];
+    }
+  });
+  const entries = await Promise.all(tasks);
+  return Object.fromEntries(entries);
+}
+
+// GET /football/scores?ids=123,456,789
+app.get('/football/scores', async (req, res) => {
+  try {
+    if (!API_FOOTBALL_KEY) return res.status(500).json({ error: 'API_FOOTBALL_KEY not set' });
+    const ids = String(req.query.ids || '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+    if (ids.length === 0) return res.status(400).json({ error: "Provide 'ids' query, e.g. ?ids=123,456" });
+
+    const response = await resolveScores(ids);
+    res.json({ results: ids.length, response });
+  } catch (err) {
+    console.error('scores GET error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch scores', details: err.message });
+  }
+});
+
+// POST /football/scores  { "ids": [123,456] }
+app.post('/football/scores', async (req, res) => {
+  try {
+    if (!API_FOOTBALL_KEY) return res.status(500).json({ error: 'API_FOOTBALL_KEY not set' });
+    const bodyIds = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const ids = bodyIds.map(String).map(s => s.trim()).filter(Boolean);
+    if (ids.length === 0) return res.status(400).json({ error: "Body must include { ids: [ ... ] }" });
+
+    const response = await resolveScores(ids);
+    res.json({ results: ids.length, response });
+  } catch (err) {
+    console.error('scores POST error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch scores', details: err.message });
+  }
+});
+
 app.get('/football/fixtures', async (req, res) => {
   try {
     const { date, leagues, timezone = 'UTC', season, withPrediction } = req.query;
