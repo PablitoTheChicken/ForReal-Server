@@ -4,6 +4,9 @@ const cors = require('cors');
 const axios = require('axios');
 const fs = require('fs');
 
+const OpenAI = require('openai');
+const openai = new OpenAI({ apiKey: "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" });
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -22,7 +25,7 @@ const FOOTBALL_CACHE_MS = 5 * 60 * 1000;
 
 app.get('/football/fixtures', async (req, res) => {
   try {
-    const { date, leagues, timezone = 'UTC', season } = req.query;
+    const { date, leagues, timezone = 'UTC', season, withPrediction } = req.query;
     if (!date) {
       return res.status(400).json({ error: "Missing required 'date' (YYYY-MM-DD)" });
     }
@@ -69,15 +72,48 @@ app.get('/football/fixtures', async (req, res) => {
       return leagueOk && seasonOk;
     });
 
+let predictedMap = new Map();
+
+if (withPrediction === 'true') {
+  const jobs = filtered.map(async fx => {
+    const home = fx?.teams?.home?.name;
+    const away = fx?.teams?.away?.name;
+    if (!home || !away) return;
+    try {
+      const key = `${home} vs ${away}`;
+      const score = await predictScore({
+        home, away,
+        season: fx?.league?.season,
+        league: fx?.league?.name || fx?.league?.id,
+        date: fx?.fixture?.date
+      });
+      predictedMap.set(key, score);
+    } catch (e) {
+      console.warn('Prediction failed for fixture:', home, away, e.message);
+    }
+  });
+  await Promise.allSettled(jobs);
+}
+
+    const responseWithPredictions = filtered.map(fx => {
+  const home = fx?.teams?.home?.name;
+  const away = fx?.teams?.away?.name;
+  const key = `${home} vs ${away}`;
+  return {
+    ...fx,
+    gptPredictedScore: predictedMap.get(key) || null
+  };
+});
+
     // Build merged payload (same shape as API-Football)
-    const merged = {
-      get: 'fixtures',
-      parameters: { date, leagues: leagueIds, season: seasonNumber, timezone },
-      errors: apiPayload.errors || [],
-      results: filtered.length,
-      paging: { current: 1, total: 1 },
-      response: filtered,
-    };
+const merged = {
+  get: 'fixtures',
+  parameters: { date, leagues: leagueIds, season: seasonNumber, timezone, withPrediction },
+  errors: apiPayload.errors || [],
+  results: (withPrediction === 'true') ? responseWithPredictions.length : filtered.length,
+  paging: { current: 1, total: 1 },
+  response: (withPrediction === 'true') ? responseWithPredictions : filtered,
+};
 
     footballCache.set(cacheKey, { ts: Date.now(), payload: merged });
     res.json(merged);
