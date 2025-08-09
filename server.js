@@ -4,8 +4,9 @@ const cors = require('cors');
 const axios = require('axios');
 const fs = require('fs');
 
+const OPENAPI_KEY = "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"
 const OpenAI = require('openai');
-const openai = new OpenAI({ apiKey: "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" });
+const openai = new OpenAI({ apiKey: OPENAPI_KEY });
 
 const app = express();
 app.use(cors());
@@ -24,8 +25,6 @@ const footballCache = new Map();
 const FOOTBALL_CACHE_MS = 5 * 60 * 1000;
 
 async function predictScore({ home, away, season, league, date }) {
-  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not set');
-
   const info = [
     home && `Home: ${home}`,
     away && `Away: ${away}`,
