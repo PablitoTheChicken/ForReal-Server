@@ -23,6 +23,39 @@ const CONTACT_TO="joram@kleiberg.net"
 const footballCache = new Map();
 const FOOTBALL_CACHE_MS = 5 * 60 * 1000;
 
+async function predictScore({ home, away, season, league, date }) {
+  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not set');
+
+  const info = [
+    home && `Home: ${home}`,
+    away && `Away: ${away}`,
+    league && `League: ${league}`,
+    season && `Season: ${season}`,
+    date && `Date: ${date}`
+  ].filter(Boolean).join(' | ');
+
+  const resp = await openai.responses.create({
+    model: 'gpt-4o-mini-2024-07-18',
+    instructions: 'Return ONLY a score in the exact format "#-#". No words. No spaces.',
+    input: `Predict full-time football score. Context: ${info}`,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'score_only',
+        strict: true,
+        schema: { type: 'string', pattern: '^[0-9]{1,2}-[0-9]{1,2}$' }
+      }
+    },
+    max_output_tokens: 5
+  });
+
+  const out = (resp.output_parsed ?? String(resp.output_text || '')).trim();
+  if (!/^[0-9]{1,2}-[0-9]{1,2}$/.test(out)) {
+    throw new Error(`Invalid score: ${out}`);
+  }
+  return out;
+}
+
 app.get('/football/fixtures', async (req, res) => {
   try {
     const { date, leagues, timezone = 'UTC', season, withPrediction } = req.query;
