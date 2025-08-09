@@ -38,14 +38,15 @@ async function predictScore({ home, away, season, league, date }) {
     model: 'gpt-4o-mini-2024-07-18',
     instructions: 'Return ONLY a score in the exact format "#-#". No words. No spaces.',
     input: `Predict full-time football score. Context: ${info}`,
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        name: 'score_only',
-        strict: true,
-        schema: { type: 'string', pattern: '^[0-9]{1,2}-[0-9]{1,2}$' }
-      }
-    },
+    text_format: {
+  type: 'json_schema',
+  json_schema: {
+    name: 'score_only',
+    strict: true,
+    schema: { type: 'string', pattern: '^[0-9]{1,2}-[0-9]{1,2}$' }
+  }
+},
+
     max_output_tokens: 5
   });
 
