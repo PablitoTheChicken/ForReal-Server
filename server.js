@@ -22,7 +22,7 @@ const FOOTBALL_CACHE_MS = 5 * 60 * 1000;
 
 app.get('/football/fixtures', async (req, res) => {
   try {
-    const { date, leagues, timezone = 'UTC' } = req.query;
+    const { date, leagues, timezone = 'UTC', season } = req.query;
     if (!date) {
       return res.status(400).json({ error: "Missing required 'date' (YYYY-MM-DD)" });
     }
@@ -30,12 +30,16 @@ app.get('/football/fixtures', async (req, res) => {
       return res.status(500).json({ error: 'API_FOOTBALL_KEY not set on server' });
     }
 
+    // Parse filters (we will NOT send these to the API; we filter locally)
     const leagueIds = (leagues ? String(leagues) : '')
       .split(',')
       .map(s => s.trim())
       .filter(Boolean);
 
-    const cacheKey = JSON.stringify({ date, leagueIds, timezone });
+    const seasonNumber = season ? Number(season) : null;
+
+    // Cache key includes filters since we return filtered results
+    const cacheKey = JSON.stringify({ date, leagueIds, season: seasonNumber, timezone });
     const cached = footballCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < FOOTBALL_CACHE_MS) {
       return res.json(cached.payload);
@@ -44,27 +48,35 @@ app.get('/football/fixtures', async (req, res) => {
     const url = 'https://v3.football.api-sports.io/fixtures';
     const headers = { 'x-apisports-key': API_FOOTBALL_KEY };
 
-    let responses = [];
-    if (leagueIds.length === 0) {
-      // All fixtures for the date
-      const r = await axios.get(url, { headers, params: { date, timezone } });
-      responses = [r.data];
-    } else {
-      // Fetch per-league and merge
-      const requests = leagueIds.map(league =>
-        axios.get(url, { headers, params: { date, league, timezone } })
-      );
-      responses = (await Promise.all(requests)).map(r => r.data);
-    }
+    // IMPORTANT: Only use date (+ timezone) with the external API (free plan friendly)
+    const apiResp = await axios.get(url, { headers, params: { date, timezone } });
+    const apiPayload = apiResp.data || {};
+    const rawFixtures = Array.isArray(apiPayload.response) ? apiPayload.response : [];
 
-    // Merge API-Football payloads
+    // Manual filtering by league + season (if provided)
+    const filtered = rawFixtures.filter(item => {
+      const itemLeagueId = item?.league?.id;
+      const itemSeason = item?.league?.season;
+
+      const leagueOk = leagueIds.length === 0
+        ? true
+        : leagueIds.includes(String(itemLeagueId));
+
+      const seasonOk = seasonNumber == null
+        ? true
+        : itemSeason === seasonNumber;
+
+      return leagueOk && seasonOk;
+    });
+
+    // Build merged payload (same shape as API-Football)
     const merged = {
       get: 'fixtures',
-      parameters: { date, leagues: leagueIds, timezone },
-      errors: [],
-      results: responses.reduce((sum, r) => sum + (r.results || 0), 0),
+      parameters: { date, leagues: leagueIds, season: seasonNumber, timezone },
+      errors: apiPayload.errors || [],
+      results: filtered.length,
       paging: { current: 1, total: 1 },
-      response: responses.flatMap(r => r.response || []),
+      response: filtered,
     };
 
     footballCache.set(cacheKey, { ts: Date.now(), payload: merged });
