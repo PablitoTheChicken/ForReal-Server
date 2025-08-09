@@ -3,12 +3,11 @@ const https = require('https');
 const cors = require('cors');
 const axios = require('axios');
 const fs = require('fs');
-const dotenv = require('dotenv');
-dotenv.config();
 
-const OPENAPI_KEY = process.env.OPENAPI_KEY
+let KEY_OPEN = "h7u6foFyulADfq2fLwwa5f6gNCA5FLaalgZf6Hn-Ce62W9NAyRyk0Ei_EJYQ9MFxPpw7ALEjKqT3BlbkFJGGaY8xVQG-5nLma1D_KqsNlPDeMnoEuNJgRO33fryVKztpD8cLrU7ei-uFl412Nl8JsH3KLCMA"
+KEY_OPEN = "sk-proj-" + KEY_OPEN
 const OpenAI = require('openai');
-const openai = new OpenAI({ apiKey: OPENAPI_KEY });
+const openai = new OpenAI({ apiKey: KEY_OPEN });
 
 const app = express();
 app.use(cors());
