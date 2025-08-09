@@ -13,7 +13,7 @@ const privateKey  = fs.readFileSync('/etc/letsencrypt/live/cahoots.gg/privkey.pe
 const certificate = fs.readFileSync('/etc/letsencrypt/live/cahoots.gg/fullchain.pem', 'utf8');
 const credentials = { key: privateKey, cert: certificate };
 
-const API_FOOTBALL_KEY=your_api_football_key_here
+const API_FOOTBALL_KEY="21bc17ca293394f6a550326464b6cdcc"
 const CONTACT_FROM="Cahoots.gg <no-reply@forreal.com>"
 const CONTACT_TO="joram@kleiberg.net"
 
