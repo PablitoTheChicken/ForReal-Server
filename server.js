@@ -36,26 +36,42 @@ async function predictScore({ home, away, season, league, date }) {
 
   const resp = await openai.responses.create({
     model: 'gpt-4o-mini-2024-07-18',
-    instructions: 'Return ONLY a score in the exact format "#-#". No words. No spaces.',
-    input: `Predict full-time football score. Context: ${info}`,
-    text_format: {
-  type: 'json_schema',
-  json_schema: {
-    name: 'score_only',
-    strict: true,
-    schema: { type: 'string', pattern: '^[0-9]{1,2}-[0-9]{1,2}$' }
-  }
-},
-
-    max_output_tokens: 5
+    instructions: [
+      'Predict a football (soccer) full-time score.',
+      'Use the tool to return ONLY the score; no words.'
+    ].join(' '),
+    input: `Context: ${info}`,
+    tools: [{
+      type: 'function',
+      function: {
+        name: 'return_score',
+        description: 'Return only the predicted full-time score.',
+        strict: true, // enforce schema
+        parameters: {
+          type: 'object',
+          properties: {
+            score: { type: 'string', pattern: '^[0-9]{1,2}-[0-9]{1,2}$' }
+          },
+          required: ['score'],
+          additionalProperties: false
+        }
+      }
+    }],
+    // Force using our tool (single tool, so "required" is enough; you can also name it explicitly)
+    tool_choice: 'required',
+    max_output_tokens: 10
   });
 
-  const out = (resp.output_parsed ?? String(resp.output_text || '')).trim();
-  if (!/^[0-9]{1,2}-[0-9]{1,2}$/.test(out)) {
-    throw new Error(`Invalid score: ${out}`);
+  // Find the tool call and extract validated args
+  const toolCalls = (resp.output?.[0]?.content || []).filter(p => p.type === 'tool_call');
+  const args = toolCalls?.[0]?.function?.arguments;
+  const score = args?.score || '';
+  if (!/^[0-9]{1,2}-[0-9]{1,2}$/.test(score)) {
+    throw new Error(`Invalid score: ${score}`);
   }
-  return out;
+  return score;
 }
+
 
 app.get('/football/fixtures', async (req, res) => {
   try {
