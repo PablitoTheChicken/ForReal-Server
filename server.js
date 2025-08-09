@@ -13,7 +13,6 @@ const privateKey  = fs.readFileSync('/etc/letsencrypt/live/cahoots.gg/privkey.pe
 const certificate = fs.readFileSync('/etc/letsencrypt/live/cahoots.gg/fullchain.pem', 'utf8');
 const credentials = { key: privateKey, cert: certificate };
 
-const RESEND_API_KEY=your_resend_api_key
 const CONTACT_FROM="Cahoots.gg <no-reply@forreal.com>"
 const CONTACT_TO="joram@kleiberg.net"
 
