@@ -13,6 +13,10 @@ const privateKey  = fs.readFileSync('/etc/letsencrypt/live/cahoots.gg/privkey.pe
 const certificate = fs.readFileSync('/etc/letsencrypt/live/cahoots.gg/fullchain.pem', 'utf8');
 const credentials = { key: privateKey, cert: certificate };
 
+const RESEND_API_KEY=your_resend_api_key
+const CONTACT_FROM="Cahoots.gg <no-reply@forreal.com>"
+const CONTACT_TO="joram@kleiberg.net"
+
 // Root route
 app.get('/', (req, res) => {
   res.send('Welcome to the Roblox Game API');
@@ -31,7 +35,7 @@ app.get('/game/:universeId', async (req, res) => {
       return res.status(404).json({ error: 'Game not found or invalid Universe ID' });
     }
 
-    const { visits, playing } = data;
+    const { visits, playing, name } = data;
 
     // Fetch vote counts for like ratio:contentReference[oaicite:1]{index=1}
     let upVotes = 0;
@@ -89,6 +93,7 @@ app.get('/game/:universeId', async (req, res) => {
     }
 
     res.json({
+      name,
       visits,
       playing,
       likeRatio,
