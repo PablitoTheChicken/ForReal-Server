@@ -34,38 +34,58 @@ async function predictScore({ home, away, season, league, date }) {
     date && `Date: ${date}`
   ].filter(Boolean).join(' | ');
 
-  const resp = await openai.chat.completions.create({
-    model: "o4-mini-2025-08-01",
-    messages: [
-      {
-        role: 'system',
-        content: 'Predict a football (soccer) full-time score. Use the tool to return ONLY the score; no words. Base it on recent scores based on the last 5 game form.'
-      },
-      {
-        role: 'user', 
-        content: `Context: ${info}`
-      }
-    ],
-    tools: [{
-      type: 'function',
+const resp = await openai.chat.completions.create({
+  model: "o4-mini-2025-08-01",
+  messages: [
+    {
+      role: "system",
+      content:
+        "Predict a football full-time score based ONLY on the last 5 games per team. " +
+        "When you have the data, return only the score via the tool in 'H-A' format (e.g., 2-1). No words."
+    },
+    { role: "user", content: `Home: ${home} | Away: ${away} | League: ${league} | Season: ${season} | Date: ${date}` }
+  ],
+  tools: [
+    {
+      type: "function",
       function: {
-        name: 'return_score',
-        description: 'Return only the predicted full-time score.',
-        strict: true, // enforce schema
+        name: "get_last5_form",
+        description: "Fetch last-5 results and summary stats for both teams.",
         parameters: {
-          type: 'object',
+          type: "object",
           properties: {
-            score: { type: 'string', pattern: '^[0-9]{1,2}-[0-9]{1,2}$' }
+            home: { type: "string" },
+            away: { type: "string" },
+            league: { type: "string" },
+            season: { type: "string" },
+            date: { type: "string" }
           },
-          required: ['score'],
+          required: ["home", "away"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "return_score",
+        description: "Return only the predicted full-time score.",
+        strict: true,
+        parameters: {
+          type: "object",
+          properties: {
+            score: { type: "string", pattern: "^[0-9]{1,2}-[0-9]{1,2}$" }
+          },
+          required: ["score"],
           additionalProperties: false
         }
       }
-    }],
-    tool_choice: { type: 'function', function: { name: 'return_score' } },
-    max_tokens: 10,
-    temperature: 0.2
-  });
+    }
+  ],
+  // Let the model call get_last5_form first; after you fulfill it with real data and continue, force return_score:
+  max_tokens: 32,
+  temperature: 0.2
+});
+
 
   // Fix: Access the tool calls from the correct response structure
   const toolCalls = resp.choices?.[0]?.message?.tool_calls;
