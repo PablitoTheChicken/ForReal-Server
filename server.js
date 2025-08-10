@@ -194,6 +194,8 @@ app.get('/football/fixtures', async (req, res) => {
       return res.status(500).json({ error: 'API_FOOTBALL_KEY not set on server' });
     }
 
+    console.log(date, leagues, timezone, season, withPrediction);
+
     // Parse filters (we will NOT send these to the API; we filter locally)
     const leagueIds = (leagues ? String(leagues) : '')
       .split(',')
