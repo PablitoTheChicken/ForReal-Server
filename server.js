@@ -35,11 +35,11 @@ async function predictScore({ home, away, season, league, date }) {
   ].filter(Boolean).join(' | ');
 
   const resp = await openai.chat.completions.create({
-    model: 'gpt-4o-mini-2024-07-18',
+    model: "o4-mini-2025-08-01",
     messages: [
       {
         role: 'system',
-        content: 'Predict a football (soccer) full-time score. Use the tool to return ONLY the score; no words.'
+        content: 'Predict a football (soccer) full-time score. Use the tool to return ONLY the score; no words. Base it on recent scores based on the last 5 game form.'
       },
       {
         role: 'user', 
@@ -63,7 +63,8 @@ async function predictScore({ home, away, season, league, date }) {
       }
     }],
     tool_choice: { type: 'function', function: { name: 'return_score' } },
-    max_tokens: 10
+    max_tokens: 10,
+    temperature: 0.2
   });
 
   // Fix: Access the tool calls from the correct response structure
