@@ -35,7 +35,7 @@ async function predictScore({ home, away, season, league, date }) {
   ].filter(Boolean).join(' | ');
 
 const resp = await openai.chat.completions.create({
-  model: "o4-mini-2025-08-01",
+  model: "gpt-4o-2024-05-13",
   messages: [
     {
       role: "system",
